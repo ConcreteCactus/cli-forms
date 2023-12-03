@@ -25,7 +25,7 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+      CliForms
   other-modules:
       Paths_cli_forms
   autogen-modules:

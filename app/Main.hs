@@ -1,19 +1,23 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -Wno-partial-fields #-}
+
 module Main (main) where
 
-import Lib
-import GHC.Generics
+import CliForms
 import Data.Aeson
+import GHC.Generics
+import Data.Foldable
 
-data DummyData = Emptyyy String | Data { data1 :: String, data2 :: Float, data3 :: [Int] } deriving (Generic, Show)
+data DummyData
+    = Emptyyy String
+    | Data {data1 :: String, data2 :: Float, data3 :: [Int]}
+    deriving (Generic, Show)
 instance Default DummyData where
-  defaul = Emptyyy "this is empty"
-instance ToJSON DummyData where
-instance FromJSON DummyData where
+    defaul = Emptyyy "this is empty"
+instance ToJSON DummyData
+instance FromJSON DummyData
 
 main :: IO ()
 main = do
-  ddM <- (submitForm "defaultForm" :: IO (Maybe DummyData))
-  case ddM of
-    Nothing -> return ()
-    Just dd -> print dd
+    ddM <- (submitForm "defaultForm" :: IO (Maybe DummyData))
+    forM_ ddM print
