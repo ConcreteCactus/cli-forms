@@ -11,9 +11,10 @@ import Data.Foldable
 data DummyData
     = Emptyyy String
     | Data {data1 :: String, data2 :: Float, data3 :: [Int]}
-    deriving (Generic, Show)
+    deriving (Show, Generic)
+
 instance Default DummyData where
-    defaul = Emptyyy "this is empty"
+  defaul = Emptyyy "default data"
 instance ToJSON DummyData
 instance FromJSON DummyData
 

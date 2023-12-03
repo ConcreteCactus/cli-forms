@@ -3,7 +3,7 @@
 
 module CliForms (
     submitForm,
-    Default(..),
+    Default (..),
 ) where
 
 import Control.Monad
@@ -14,6 +14,7 @@ import qualified Data.Yaml as Ya
 import System.Directory
 import System.Environment
 import System.Process
+import System.IO
 
 class Default a where
     defaul :: a
@@ -21,7 +22,7 @@ class Default a where
 submitForm :: (ToJSON a, FromJSON a, Default a) => String -> IO (Maybe a)
 submitForm formName = do
     folder <- setupCacheDirectory
-    showForm formName folder
+    showForm formName folder True
 
 setupCacheDirectory :: IO FilePath
 setupCacheDirectory = do
@@ -36,15 +37,20 @@ showForm ::
     (ToJSON a, FromJSON a, Default a) =>
     String ->
     FilePath ->
+    Bool ->
     IO (Maybe a)
-showForm formName folder = do
-    let filePath = formPath formName folder
-    _ <- createFile formName folder :: IO a
+showForm formName folder isFirst = do
+    let filePath = formPath formName folder False
+    let filePathTemp = formPath formName folder True
+    when isFirst $ createFile (defaul :: a) formName folder
     editFile formName folder
-    decodeE <- Ya.decodeFileEither filePath
+    fileString <- Bs.readFile filePathTemp
+    let decodeE = Ya.decodeEither' fileString
     case decodeE of
         Left e -> showError formName folder e
-        Right a -> return a
+        Right a -> do
+            Bs.writeFile filePath fileString
+            return a
 
 showError ::
     forall a.
@@ -54,35 +60,46 @@ showError ::
     Ya.ParseException ->
     IO (Maybe a)
 showError formName folder exc = do
-    putStrLn $ show exc
+    putStrLn $ Ya.prettyPrintParseException exc
+    hFlush stdout
     resp <- ask "Do you want to fix the file?"
-    if resp then showForm formName folder else return Nothing
+    if resp then showForm formName folder False else return Nothing
 
 ask :: String -> IO Bool
 ask question = do
     putStr $ question ++ " y/n:"
+    hFlush stdout
     line <- getLine
-    case toLower (head line) of
-        'n' -> return False
-        'y' -> return True
+    case line of
+        a | map toLower a == "n" -> return False
+        a | map toLower a == "y" -> return True
         _ -> ask question
 
-formPath :: String -> FilePath -> FilePath
-formPath formName folder = folder ++ "/" ++ formName ++ ".yaml"
+formPath :: String -> FilePath -> Bool -> FilePath
+formPath formName folder temporary =
+    folder
+        ++ "/"
+        ++ formName
+        ++ (if temporary then ".temporary" else "")
+        ++ ".yaml"
 
-createFile :: (ToJSON a, Default a) => String -> FilePath -> IO a
-createFile formName folder = do
-    let filePath = formPath formName folder
+createFile :: (ToJSON a) => a -> String -> FilePath -> IO ()
+createFile defaultData formName folder = do
+    let filePath = formPath formName folder False
+    let filePathTemp = formPath formName folder True
     fileExists <- doesFileExist filePath
-    let defaultData = defaul
-    unless fileExists $ do
+    if fileExists then do
         let fileString = Ya.encode defaultData
         Bs.writeFile filePath fileString
-    return defaultData
+        Bs.writeFile filePathTemp fileString
+    else do
+        fileString <- Bs.readFile filePath
+        Bs.writeFile filePathTemp fileString
 
+        
 editFile :: String -> FilePath -> IO ()
 editFile formName folder = do
-    let filePath = formPath formName folder
+    let filePath = formPath formName folder True
     editor <- getEnv "EDITOR"
     let editor' = if null editor then "vim" else editor
     callCommand $ editor' ++ " " ++ filePath
